@@ -19,7 +19,7 @@ Ticker tickerBuilinLED;
 
 // rs485
 HardwareSerial rs485(1);
-HardwareSerial rs485_2(2);
+
 
 tiny32_v5::tiny32_v5()
 {
@@ -3006,14 +3006,14 @@ bool tiny32_v5::PZEM_003(uint8_t id, float &volt, float &amp, float &power, uint
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -3023,13 +3023,13 @@ bool tiny32_v5::PZEM_003(uint8_t id, float &volt, float &amp, float &power, uint
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -3272,14 +3272,14 @@ float tiny32_v5::PZEM_003_Volt(uint8_t id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -3289,13 +3289,13 @@ float tiny32_v5::PZEM_003_Volt(uint8_t id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -3482,14 +3482,14 @@ float tiny32_v5::PZEM_003_Amp(uint8_t id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -3499,13 +3499,13 @@ float tiny32_v5::PZEM_003_Amp(uint8_t id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -3692,14 +3692,14 @@ float tiny32_v5::PZEM_003_Power(uint8_t id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -3709,13 +3709,13 @@ float tiny32_v5::PZEM_003_Power(uint8_t id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -3913,14 +3913,14 @@ int16_t tiny32_v5::PZEM_003_Energy(uint8_t id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -3930,13 +3930,13 @@ int16_t tiny32_v5::PZEM_003_Energy(uint8_t id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -4127,14 +4127,14 @@ bool tiny32_v5::PZEM_003_ResetEnergy(uint8_t id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 4; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -4144,13 +4144,13 @@ bool tiny32_v5::PZEM_003_ResetEnergy(uint8_t id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -4333,14 +4333,14 @@ int8_t tiny32_v5::PZEM_003_SetAddress(uint8_t id, uint8_t new_id)
 #pragma endregion
 
   /**** Write data ****/
-  rs485_2.flush();
+  rs485.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485_2.write(_data_write[_i]);
+    rs485.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485_2.available())
+  if (rs485.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -4350,13 +4350,13 @@ int8_t tiny32_v5::PZEM_003_SetAddress(uint8_t id, uint8_t new_id)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485_2.read();
+      _data_read[_byte_cnt++] = rs485.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485_2.available()>0);
-    } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(rs485.available()>0);
+    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -4549,14 +4549,14 @@ int8_t tiny32_v5::PZEM_003_SearchAddress(void)
 #pragma endregion
 
     /**** Write data ****/
-    rs485_2.flush();
+    rs485.flush();
     for (int _i = 0; _i < 8; _i++)
-      rs485_2.write(_data_write[_i]);
+      rs485.write(_data_write[_i]);
 
     vTaskDelay(300);
 
     /**** Read data ****/
-    if (rs485_2.available())
+    if (rs485.available())
     {
 
       for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -4566,13 +4566,13 @@ int8_t tiny32_v5::PZEM_003_SearchAddress(void)
       // correct data
       do
       {
-        _data_read[_byte_cnt++] = rs485_2.read();
+        _data_read[_byte_cnt++] = rs485.read();
         if (_data_read[0] == 0x00)
         { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
           _byte_cnt = 0;
         }
-        // }while(rs485_2.available()>0);
-      } while (rs485_2.available() > 0 && _byte_cnt < sizeof(_data_read));
+        // }while(rs485.available()>0);
+      } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug
@@ -4734,7 +4734,7 @@ bool tiny32_v5::PZEM_003_begin(uint8_t rx, uint8_t tx)
 {
   if (((tx == TXD2) || (tx == TXD3)) && ((rx == RXD2) || (rx == RXD3)))
   {
-    rs485_2.begin(9600, SERIAL_8N2, rx, tx);
+    rs485.begin(9600, SERIAL_8N2, rx, tx);
     return 1;
   }
   else
@@ -40677,6 +40677,117 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
   }
 }
 
+
+/***********************************************************************
+ * FUNCTION:    RelayModusRTU_searchAddress
+ * DESCRIPTION: ค้นหาที่อยู่ (Address) ของ Relay ModbusRTU 16channel
+ * PARAMETERS:  void
+ * RETURNED:    int8_t address (1-247) / -1 not found
+ ***********************************************************************/
+ int8_t tiny32_v5::RelayModusRTU_searchAddress(void)
+{
+  this->RelayModusRTU_begin(RXD2, TXD2);
+  uint8_t _data_write[8];
+  uint8_t _data_read[20];
+  uint8_t _byte_cnt = 0;
+  uint16_t _crc = 0xffff;
+  uint16_t _crc_r = 0xffff;
+  const bool debug = false;
+
+  for (uint8_t address = 1; address <= 247; address++)
+  {
+    _crc = 0xffff;  // ✅ RESET CRC16 for each address
+    _data_write[0] = address;
+    _data_write[1] = 0x03;  // Function code: Read Holding Registers
+    _data_write[2] = 0x00;
+    _data_write[3] = 0x00;
+    _data_write[4] = 0x00;
+    _data_write[5] = 0x01;
+
+    // Generate CRC16
+    for (byte _i = 0; _i < sizeof(_data_write) - 2; _i++)
+    {
+      _crc = crc16_update(_crc, _data_write[_i]);
+    }
+
+    // Insert CRC16 to data byte
+    _data_write[sizeof(_data_write) - 1] = _crc >> 8;
+    _data_write[sizeof(_data_write) - 2] = _crc - _data_write[sizeof(_data_write) - 1] * 0x0100;
+
+    if (debug) {
+      Serial.printf("TX >> Addr: %d | Packet: ", address);
+      for (int _i = 0; _i < 8; _i++) Serial.printf("%02X ", _data_write[_i]);
+      Serial.println();
+    }
+
+    /**** Write data ****/
+    rs485.flush();
+    for (int _i = 0; _i < 8; _i++)
+      rs485.write(_data_write[_i]);
+
+    /**** Read data ****/
+    vTaskDelay(300);
+    if (rs485.available())
+    {
+      for (byte _i = 0; _i < sizeof(_data_read); _i++)
+        _data_read[_i] = 0x00;
+      _byte_cnt = 0;
+
+      // ✅ Improved frame reading with alignment check
+      do {
+        uint8_t _byte = rs485.read();
+        
+        // Skip leading 0x00 bytes
+        if (_byte_cnt == 0 && _byte == 0x00) {
+          continue;  // Skip and wait for valid start
+        }
+        
+        _data_read[_byte_cnt++] = _byte;
+      } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
+
+      if (debug) {
+        Serial.printf("RX << Addr: %d | Bytes: %d | Packet: ", address, _byte_cnt);
+        for (int _i = 0; _i < _byte_cnt; _i++) Serial.printf("%02X ", _data_read[_i]);
+        Serial.println();
+      }
+
+      // ✅ Validate response
+      if (_byte_cnt >= 7) {
+        // Check address byte matches
+        if (_data_read[0] != address) {
+          if (debug) Serial.printf("  ❌ Address mismatch: expected %d, got %d\r\n", address, _data_read[0]);
+          continue;
+        }
+
+        // Check function code (should be 0x03)
+        if (_data_read[1] != 0x03) {
+          if (debug) Serial.printf("  ❌ Function code error: %02X\r\n", _data_read[1]);
+          continue;
+        }
+
+        // ✅ Validate CRC of response
+        _crc_r = 0xffff;
+        for (byte _i = 0; _i < _byte_cnt - 2; _i++) {
+          _crc_r = crc16_update(_crc_r, _data_read[_i]);
+        }
+
+        uint16_t _crc_received = (_data_read[_byte_cnt - 1] << 8) | _data_read[_byte_cnt - 2];
+
+        if (_crc_r == _crc_received) {
+          Serial.printf("✅ Found Relay ModbusRTU at address: %d\r\n", address);
+          return address;
+        } else {
+          if (debug) Serial.printf("  ❌ CRC error: calculated %04X, received %04X\r\n", _crc_r, _crc_received);
+        }
+      }
+    }
+  }
+  Serial.printf("❌ Relay ModbusRTU not found!!\r\n");
+  return -1;
+}
+
+
+
 /***********************************************************************
  * FUNCTION:    RelayModusRTU_Control
  * DESCRIPTION: ควบคุมการเปิด-ปิด Relay ModbusRTU 16channel
@@ -40685,6 +40796,7 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
 //  ***********************************************************************/
 bool tiny32_v5 ::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool state)
 {
+  this->RelayModusRTU_begin(RXD2, TXD2);
   uint8_t _data_write[8];
   uint8_t _data_read[20];
   uint8_t _byte_cnt = 0;
@@ -40783,6 +40895,7 @@ bool tiny32_v5 ::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool st
  ***********************************************************************/
 bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
 {
+  this->RelayModusRTU_begin(RXD2, TXD2);
   uint16_t _crc = 0xffff;
   uint16_t _crc_r = 0xffff;
 
@@ -41036,7 +41149,7 @@ bool tiny32_v5::TFLiDAR_begin(uint8_t rx, uint8_t tx)
 {
   if (((tx == TXD2) || (tx == TXD3)) && ((rx == RXD2) || (rx == RXD3)))
   {
-    rs485_2.begin(115200, SERIAL_8N1, rx, tx);
+    rs485.begin(115200, SERIAL_8N1, rx, tx);
     Serial.printf("TFLiDAR initialized: RX=%d, TX=%d\r\n", rx, tx);
     return 1;
   }
@@ -41056,12 +41169,12 @@ bool tiny32_v5::TFLiDAR_begin(uint8_t rx, uint8_t tx)
 int tiny32_v5::TFLiDAR_getData()
 {
   static uint8_t _error_count = 0;
-  if (rs485_2.available()) // check if serial port has data input
+  if (rs485.available()) // check if serial port has data input
   {
     float dist_meters = 0.0; // distance in meters
     if (rec_debug_state == 0x01)
     { // the first byte
-      uart[0] = rs485_2.read();
+      uart[0] = rs485.read();
       if (uart[0] == 0x59)
       {
         check = uart[0];
@@ -41070,7 +41183,7 @@ int tiny32_v5::TFLiDAR_getData()
     }
     else if (rec_debug_state == 0x02)
     { // the second byte
-      uart[1] = rs485_2.read();
+      uart[1] = rs485.read();
       if (uart[1] == 0x59)
       {
         check += uart[1];
@@ -41084,43 +41197,43 @@ int tiny32_v5::TFLiDAR_getData()
 
     else if (rec_debug_state == 0x03)
     {
-      uart[2] = rs485_2.read();
+      uart[2] = rs485.read();
       check += uart[2];
       rec_debug_state = 0x04;
     }
     else if (rec_debug_state == 0x04)
     {
-      uart[3] = rs485_2.read();
+      uart[3] = rs485.read();
       check += uart[3];
       rec_debug_state = 0x05;
     }
     else if (rec_debug_state == 0x05)
     {
-      uart[4] = rs485_2.read();
+      uart[4] = rs485.read();
       check += uart[4];
       rec_debug_state = 0x06;
     }
     else if (rec_debug_state == 0x06)
     {
-      uart[5] = rs485_2.read();
+      uart[5] = rs485.read();
       check += uart[5];
       rec_debug_state = 0x07;
     }
     else if (rec_debug_state == 0x07)
     {
-      uart[6] = rs485_2.read();
+      uart[6] = rs485.read();
       check += uart[6];
       rec_debug_state = 0x08;
     }
     else if (rec_debug_state == 0x08)
     {
-      uart[7] = rs485_2.read();
+      uart[7] = rs485.read();
       check += uart[7];
       rec_debug_state = 0x09;
     }
     else if (rec_debug_state == 0x09)
     {
-      uart[8] = rs485_2.read();
+      uart[8] = rs485.read();
       if (uart[8] == check)
       {
         dist = uart[2] + uart[3] * 256;       // the distance in cm
@@ -41139,9 +41252,9 @@ int tiny32_v5::TFLiDAR_getData()
         // Serial.print("\t Chip Temprature = ");
         // Serial.print(temprature);
         // Serial.println(" celcius degree"); // output chip temperature of Lidar
-        while (rs485_2.available())
+        while (rs485.available())
         {
-          rs485_2.read();
+          rs485.read();
         } // This part is added becuase some previous packets are there in the buffer so to clear serial buffer and get fresh data.
         delay(100); // wait for next data packet
       }

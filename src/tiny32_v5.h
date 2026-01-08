@@ -3,7 +3,7 @@
  * Description  :     Class for Hardware config and function for tiny32_v5 module
  * Author       :     Tenergy Innovation Co., Ltd.
  * Date         :     23 Nov 2021
- * Revision     :     4.0.0
+ * Revision     :     4.0.1
  * Rev1.0       :     Original
  * Rev1.1       :     Add TimeStamp_minute
  *                    Add TimeStamp_24hr_minute
@@ -55,6 +55,7 @@
  * Rev3.18.2    :     Improve Function TFLiDAR_getData, can respose error data, disconnect sensor [26-10-2025 20:30]
  * Rev3.19.0    :     Add Debounce library integration improvements for Sw1 and Sw2 function [29-12-2025 23:56]
  * Rev4.0.0     :     Change to tiny32_v5
+ * Rev4.0.1     :     Add RelayModbusRTU_searchAddress [08-01-2026 22:54]
  * website      :     http://www.tenergyinnovation.co.th
  * Email        :     uten.boonliam@tenergyinnovation.co.th
  * TEL          :     089-140-7205
@@ -68,7 +69,7 @@
 class tiny32_v5
 {
 private:
-#define version_c "4.0.0"
+#define version_c "4.0.1"
     Debounce* _sw1Debounce;
     Debounce* _sw2Debounce;
     bool _sw1LastState;
@@ -448,6 +449,7 @@ public:
 
     /* ModbusRTU Relay Module */
     bool RelayModusRTU_begin(uint8_t rx = RXD2, uint8_t tx = TXD2);
+    int8_t RelayModusRTU_searchAddress(void);
     bool RelayModusRTU_Control(uint8_t id = 1, uint8_t channel = 1, bool state = true);
     bool RelayModusRTU_Status(uint8_t id = 1, uint8_t channel = 1);
 
