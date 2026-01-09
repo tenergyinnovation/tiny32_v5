@@ -22,6 +22,14 @@ Ticker tickerBuilinLED;
 
 // rs485
 HardwareSerial rs485(1);
+HardwareSerial rs485_2(2);
+
+// Global pointer for Modbus RTU serial port (set by RelayModusRTU_begin)
+HardwareSerial* relayRTU_serial = &rs485;  // Default to rs485
+
+// Helper function to get the correct RS485 serial port
+// This allows dynamic selection of rs485 or rs485_2 based on pins configured in RelayModusRTU_begin()
+#define RELAY_SERIAL (*relayRTU_serial)
 
 
 tiny32_v5::tiny32_v5()
@@ -40136,7 +40144,16 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
     this->_relayRTU_rx = rx;
     this->_relayRTU_tx = tx;
     
-    rs485.begin(9600, SERIAL_8N1, rx, tx);
+    // Determine which UART port to use based on pins
+    if (tx == TXD2 && rx == RXD2) {
+      this->_relayRTU_port = 1;  // Use rs485(1)
+      rs485.begin(9600, SERIAL_8N1, rx, tx);
+      relayRTU_serial = &rs485;  // Set global pointer
+    } else if (tx == TXD3 && rx == RXD3) {
+      this->_relayRTU_port = 2;  // Use rs485_2(2)
+      rs485_2.begin(9600, SERIAL_8N1, rx, tx);
+      relayRTU_serial = &rs485_2;  // Set global pointer
+    }
     return 1;
   }
   else
@@ -40150,13 +40167,13 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
 /***********************************************************************
  * FUNCTION:    RelayModusRTU_searchAddress
  * DESCRIPTION: ค้นหาที่อยู่ (Address) ของ Relay ModbusRTU 16channel
- * PARAMETERS:  void
+ * PARAMETERS:  rx - RX pin (default RXD2), tx - TX pin (default TXD2)
  * RETURNED:    int8_t address (1-247) / -1 not found
  ***********************************************************************/
- int8_t tiny32_v5::RelayModusRTU_searchAddress()
+ int8_t tiny32_v5::RelayModusRTU_searchAddress(uint8_t rx, uint8_t tx)
 {
-   // Re-initialize with stored RX/TX pins
-  this->RelayModusRTU_begin(this->_relayRTU_rx, this->_relayRTU_tx);
+   // Re-initialize with provided RX/TX pins
+  this->RelayModusRTU_begin(rx, tx);
 
   uint8_t _data_write[8];
   uint8_t _data_read[20];
@@ -40192,13 +40209,13 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
     }
 
     /**** Write data ****/
-    rs485.flush();
+    RELAY_SERIAL.flush();
     for (int _i = 0; _i < 8; _i++)
-      rs485.write(_data_write[_i]);
+      RELAY_SERIAL.write(_data_write[_i]);
 
     /**** Read data ****/
     vTaskDelay(300);
-    if (rs485.available())
+    if (RELAY_SERIAL.available())
     {
       for (byte _i = 0; _i < sizeof(_data_read); _i++)
         _data_read[_i] = 0x00;
@@ -40206,7 +40223,7 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
 
       // ✅ Improved frame reading with alignment check
       do {
-        uint8_t _byte = rs485.read();
+        uint8_t _byte = RELAY_SERIAL.read();
         
         // Skip leading 0x00 bytes
         if (_byte_cnt == 0 && _byte == 0x00) {
@@ -40214,7 +40231,7 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
         }
         
         _data_read[_byte_cnt++] = _byte;
-      } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
+      } while (RELAY_SERIAL.available() > 0 && _byte_cnt < sizeof(_data_read));
 
       if (debug) {
         Serial.printf("RX << Addr: %d | Bytes: %d | Packet: ", address, _byte_cnt);
@@ -40314,11 +40331,11 @@ bool tiny32_v5::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool sta
   // ============================================================
   // TRANSMIT REQUEST FRAME
   // ============================================================
-  rs485.flush();  // Clear RX buffer before transmission
+  RELAY_SERIAL.flush();  // Clear RX buffer before transmission
   for (int i = 0; i < 8; i++) {
-    rs485.write(frame_tx[i]);
+    RELAY_SERIAL.write(frame_tx[i]);
   }
-  rs485.flush();  // Wait for transmission complete
+  RELAY_SERIAL.flush();  // Wait for transmission complete
   
   #ifdef modbusRTU_Debug2
   Serial.printf("[TX] Addr:%d FC:05 Channel:%d State:%s CRC:0x%04X Frame:", 
@@ -40334,7 +40351,7 @@ bool tiny32_v5::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool sta
   // ============================================================
   vTaskDelay(300);
   
-  if (!rs485.available()) {
+  if (!RELAY_SERIAL.available()) {
     Serial.printf("[ERROR] No response from Relay Module (Address: %d, Channel: %d) - TIMEOUT\r\n", 
                   address, channel);
     return false;  // Timeout = Communication Failed
@@ -40344,8 +40361,8 @@ bool tiny32_v5::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool sta
   // READ RESPONSE FRAME
   // ============================================================
   rx_count = 0;
-  while (rs485.available() && rx_count < 20) {
-    frame_rx[rx_count] = rs485.read();
+  while (RELAY_SERIAL.available() && rx_count < 20) {
+    frame_rx[rx_count] = RELAY_SERIAL.read();
     
     // Skip leading 0x00 bytes (sometimes received)
     if (rx_count == 0 && frame_rx[0] == 0x00) {
@@ -40387,20 +40404,25 @@ bool tiny32_v5::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool sta
   }
   
   // Check coil address echo
-  if (frame_rx[2] != 0x00 || frame_rx[3] != channel) {
+  if (frame_rx[2] != 0x00 || frame_rx[3] != (channel - 1)) {
     Serial.printf("[ERROR] Coil address mismatch: sent 0x00%02X, received 0x%02X%02X\r\n", 
-                  channel, frame_rx[2], frame_rx[3]);
+                  (channel - 1), frame_rx[2], frame_rx[3]);
     return false;
   }
   
   // Check coil value echo
-  if (state && (frame_rx[4] != 0xFF || frame_rx[5] != 0x00)) {
-    Serial.printf("[ERROR] Coil value mismatch for ON state: expected 0xFF00, got 0x%02X%02X\r\n", 
-                  frame_rx[4], frame_rx[5]);
-    return false;
+  // Note: Some relay modules echo the coil address in bytes 4-5 instead of the value
+  // So we'll accept either the value or the address as valid echo
+  bool coil_value_ok = false;
+  if (state && (frame_rx[4] == 0xFF || frame_rx[4] == 0x00)) {
+    coil_value_ok = true;  // Either 0xFF00 (value) or 0x0000 (address echo) is acceptable
   }
-  if (!state && (frame_rx[4] != 0x00 || frame_rx[5] != 0x00)) {
-    Serial.printf("[ERROR] Coil value mismatch for OFF state: expected 0x0000, got 0x%02X%02X\r\n", 
+  if (!state && (frame_rx[4] == 0x00)) {
+    coil_value_ok = true;  // OFF state should echo 0x0000
+  }
+  
+  if (!coil_value_ok) {
+    Serial.printf("[ERROR] Coil value mismatch: expected OFF state to echo 0x0000, got 0x%02X%02X\r\n", 
                   frame_rx[4], frame_rx[5]);
     return false;
   }
@@ -40497,14 +40519,14 @@ bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
 #endif
 
   /**** Write data ****/
-  rs485.flush();
+  RELAY_SERIAL.flush();
   for (int _i = 0; _i < 8; _i++)
-    rs485.write(_data_write[_i]);
+    RELAY_SERIAL.write(_data_write[_i]);
 
   vTaskDelay(300);
 
   /**** Read data ****/
-  if (rs485.available())
+  if (RELAY_SERIAL.available())
   {
 
     for (byte _i = 0; _i < sizeof(_data_read); _i++)
@@ -40514,13 +40536,13 @@ bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
     // correct data
     do
     {
-      _data_read[_byte_cnt++] = rs485.read();
+      _data_read[_byte_cnt++] = RELAY_SERIAL.read();
       if (_data_read[0] == 0x00)
       { // แก้ไช bug เนื่องจากอ่านค่าแรกได้ 0x00
         _byte_cnt = 0;
       }
-      // }while(rs485.available()>0);
-    } while (rs485.available() > 0 && _byte_cnt < sizeof(_data_read));
+      // }while(RELAY_SERIAL.available()>0);
+    } while (RELAY_SERIAL.available() > 0 && _byte_cnt < sizeof(_data_read));
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug2
