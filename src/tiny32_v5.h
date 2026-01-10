@@ -3,7 +3,7 @@
  * Description  :     Class for Hardware config and function for tiny32_v5 module
  * Author       :     Tenergy Innovation Co., Ltd.
  * Date         :     23 Nov 2021
- * Revision     :     4.0.4
+ * Revision     :     4.0.5
  * Rev1.0       :     Original
  * Rev1.1       :     Add TimeStamp_minute
  *                    Add TimeStamp_24hr_minute
@@ -59,6 +59,7 @@
  * Rev4.0.2     :     Fix bug RelayModbusRTU_searchAddress by add delay 10mS after write modbus RTU [08-01-2026 19:02]
  * Rev4.0.3     :     Fix bug RelayModbusRTU_Control by check coil address echo [08-01-2026 19:37]
  * Rev4.0.4     :     Fix bug cause some function is missing in tiny32_v5.h [10-01-2026 11:33]
+ * Rev4.0.5     :     Fix bug RelayModusRTU_searchAddress function to search ID correctly by FC 0x05 (Write Single Coil) [10-00-2026 12:02]
  * website      :     http://www.tenergyinnovation.co.th
  * Email        :     uten.boonliam@tenergyinnovation.co.th
  * TEL          :     089-140-7205
@@ -72,7 +73,7 @@
 class tiny32_v5
 {
 private:
-#define version_c "4.0.4"
+#define version_c "4.0.5"
     Debounce* _sw1Debounce;
     Debounce* _sw2Debounce;
     bool _sw1LastState;
@@ -457,7 +458,7 @@ public:
 
     /* ModbusRTU Relay Module */
     bool RelayModusRTU_begin(uint8_t rx = RXD2, uint8_t tx = TXD2);
-    int8_t RelayModusRTU_searchAddress(uint8_t rx = RXD2, uint8_t tx = TXD2);
+    int8_t RelayModusRTU_searchAddress(uint8_t startID = 1, uint8_t stopID = 20);
     bool RelayModusRTU_Control(uint8_t id = 1, uint8_t channel = 1, bool state = true);
     bool RelayModusRTU_Status(uint8_t id = 1, uint8_t channel = 1);
 

@@ -14,7 +14,7 @@
 #include "tiny32_v5_Lib.h"
 
 // Temporary debug flag to see Modbus frames
-//#define modbusRTU_Debug2
+// #define modbusRTU_Debug2
 
 Ticker tickerRedLED;
 Ticker tickerBlueLED;
@@ -25,12 +25,11 @@ HardwareSerial rs485(1);
 HardwareSerial rs485_2(2);
 
 // Global pointer for Modbus RTU serial port (set by RelayModusRTU_begin)
-HardwareSerial* relayRTU_serial = &rs485;  // Default to rs485
+HardwareSerial *relayRTU_serial = &rs485; // Default to rs485
 
 // Helper function to get the correct RS485 serial port
 // This allows dynamic selection of rs485 or rs485_2 based on pins configured in RelayModusRTU_begin()
 #define RELAY_SERIAL (*relayRTU_serial)
-
 
 tiny32_v5::tiny32_v5()
 {
@@ -47,7 +46,7 @@ tiny32_v5::tiny32_v5()
   digitalWrite(LED_IO12, LOW);
   digitalWrite(LED_IO4, LOW);
   digitalWrite(BUZZER, LOW);
-  
+
   // Initialize Debounce objects for SW1 and SW2
   // Using 50ms debounce delay and invert=true for active LOW switches
   _sw1Debounce = new Debounce(SW1, 50, true);
@@ -74,8 +73,6 @@ uint16_t tiny32_v5::crc16_update(uint16_t crc, uint8_t a)
   }
   return crc;
 }
-
-
 
 /***********************************************************************
  * FUNCTION:    PWN_Setup
@@ -172,10 +169,10 @@ bool tiny32_v5::Frequency_Out(uint8_t pin, double freq)
 
   // Frequency output not implemented in this build. This is a harmless stub to
   // keep the API stable while focusing on Modbus/relay fixes.
-  (void)pin; (void)freq;
+  (void)pin;
+  (void)freq;
   return 0;
 }
-
 
 /***********************************************************************
  * FUNCTION:    TimeStamp_minute_encode
@@ -222,7 +219,6 @@ void tiny32_v5::TimeStamp_hour_minute_decode(uint16_t timestemp, uint16_t &h, ui
   h = timestemp / 60;
   mi = timestemp % 60;
 }
-
 
 /***********************************************************************
  * FUNCTION:    ec_modbusRTU
@@ -40408,16 +40404,19 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
     // Store RX/TX pins for future function calls
     this->_relayRTU_rx = rx;
     this->_relayRTU_tx = tx;
-    
+
     // Determine which UART port to use based on pins
-    if (tx == TXD2 && rx == RXD2) {
-      this->_relayRTU_port = 1;  // Use rs485(1)
+    if (tx == TXD2 && rx == RXD2)
+    {
+      this->_relayRTU_port = 1; // Use rs485(1)
       rs485.begin(9600, SERIAL_8N1, rx, tx);
-      relayRTU_serial = &rs485;  // Set global pointer
-    } else if (tx == TXD3 && rx == RXD3) {
-      this->_relayRTU_port = 2;  // Use rs485_2(2)
+      relayRTU_serial = &rs485; // Set global pointer
+    }
+    else if (tx == TXD3 && rx == RXD3)
+    {
+      this->_relayRTU_port = 2; // Use rs485_2(2)
       rs485_2.begin(9600, SERIAL_8N1, rx, tx);
-      relayRTU_serial = &rs485_2;  // Set global pointer
+      relayRTU_serial = &rs485_2; // Set global pointer
     }
     return 1;
   }
@@ -40428,119 +40427,229 @@ bool tiny32_v5::RelayModusRTU_begin(uint8_t rx, uint8_t tx)
   }
 }
 
-
 /***********************************************************************
  * FUNCTION:    RelayModusRTU_searchAddress
  * DESCRIPTION: ค้นหาที่อยู่ (Address) ของ Relay ModbusRTU 16channel
- * PARAMETERS:  rx - RX pin (default RXD2), tx - TX pin (default TXD2)
- * RETURNED:    int8_t address (1-247) / -1 not found
+ *              โดยจะค้นหา ID จาก startID ถึง stopID
+ *              ใช้ FC 0x05 (Write Single Coil) เพื่อตรวจจับเฉพาะ Relay Module
+ * PARAMETERS:  startID - starting address to search (default: 1)
+ *              stopID - ending address to search (default: 20)
+ * RETURNED:    int8_t - relay address (1-247) if found, -1 if not found
+ * NOTE:        ✅ Uses FC 0x05 to identify ONLY Relay Modules
+ *              ✅ Other Modbus devices won't respond to Coil write
+ *              ✅ Prevents false positive detection
  ***********************************************************************/
- int8_t tiny32_v5::RelayModusRTU_searchAddress(uint8_t rx, uint8_t tx)
+int8_t tiny32_v5::RelayModusRTU_searchAddress(uint8_t startID, uint8_t stopID)
 {
-   // Re-initialize with provided RX/TX pins
-  this->RelayModusRTU_begin(rx, tx);
+  // Re-initialize with stored RX/TX pins from RelayModusRTU_begin()
+  this->RelayModusRTU_begin(this->_relayRTU_rx, this->_relayRTU_tx);
 
-  uint8_t _data_write[8];
-  uint8_t _data_read[20];
-  uint8_t _byte_cnt = 0;
-  uint16_t _crc = 0xffff;
-  uint16_t _crc_r = 0xffff;
-  const bool debug = true;
+  uint8_t frame_tx[8];  // Transmit frame
+  uint8_t frame_rx[20]; // Receive buffer
+  uint16_t crc;
+  uint16_t crc_rx;
+  uint8_t rx_count = 0;
 
-  for (uint8_t address = 1; address <= 247; address++)
+  Serial.printf("\r\n[SEARCH] Starting Relay search from ID %d to %d...\r\n", startID, stopID);
+
+  // ============================================================
+  // LOOP THROUGH EACH ADDRESS IN THE RANGE
+  // ============================================================
+  for (uint8_t currentID = startID; currentID <= stopID; currentID++)
   {
-    _crc = 0xffff;  // ✅ RESET CRC16 for each address
-    _data_write[0] = address;
-    _data_write[1] = 0x01;  // Function code: Read Coils (changed from 0x03)
-    _data_write[2] = 0x00;
-    _data_write[3] = 0x00;  // Coil address (0-indexed)
-    _data_write[4] = 0x00;
-    _data_write[5] = 0x01;
+    // ========================================================
+    // BUILD MODBUS RTU REQUEST FRAME (Function Code 0x05)
+    // Write Single Coil - ONLY Relay Modules respond to this
+    // Frame: [Address][FC=0x05][Coil_Addr_Hi][Coil_Addr_Lo][Value_Hi][Value_Lo][CRC_Lo][CRC_Hi]
+    // Testing on coil 0 with value 0x00FF (ON) - we'll test without actually affecting relays
+    // ========================================================
+    frame_tx[0] = currentID;  // Current slave address to test
+    frame_tx[1] = 0x05;       // Function Code = Write Single Coil (RELAY-SPECIFIC!)
+    frame_tx[2] = 0x00;       // Coil address high byte
+    frame_tx[3] = 0x00;       // Coil address low byte (coil 0)
+    frame_tx[4] = 0xFF;       // Coil value high byte (0xFF = ON)
+    frame_tx[5] = 0x00;       // Coil value low byte
 
-    // Generate CRC16
-    for (byte _i = 0; _i < sizeof(_data_write) - 2; _i++)
+    // Calculate CRC16
+    crc = 0xFFFF;
+    for (int pos = 0; pos < 6; pos++)
     {
-      _crc = crc16_update(_crc, _data_write[_i]);
+      crc ^= (uint16_t)frame_tx[pos];
+      for (int i = 0; i < 8; i++)
+      {
+        if (crc & 0x0001)
+        {
+          crc >>= 1;
+          crc ^= 0xA001;
+        }
+        else
+        {
+          crc >>= 1;
+        }
+      }
     }
 
-    // Insert CRC16 to data byte
-    _data_write[sizeof(_data_write) - 1] = _crc >> 8;
-    _data_write[sizeof(_data_write) - 2] = _crc - _data_write[sizeof(_data_write) - 1] * 0x0100;
+    // Insert CRC16 into frame
+    frame_tx[6] = crc & 0xFF;        // CRC low byte
+    frame_tx[7] = (crc >> 8) & 0xFF; // CRC high byte
 
-    if (debug) {
-      Serial.printf("TX >> Addr: %d | Packet: ", address);
-      for (int _i = 0; _i < 8; _i++) Serial.printf("%02X ", _data_write[_i]);
-      Serial.println();
+#ifdef modbusRTU_Debug2
+    Serial.printf("[SEARCH] Testing ID=%d (FC 0x05): TX [ ", currentID);
+    for (byte i = 0; i < 8; i++)
+    {
+      if (frame_tx[i] > 0x0F)
+        Serial.printf("0x%X ", frame_tx[i]);
+      else
+        Serial.printf("0x0%X ", frame_tx[i]);
     }
+    Serial.printf("]\r\n");
+#else
+    Serial.printf("[SEARCH] Testing ID=%d... ", currentID);
+#endif
 
-    /**** Write data ****/
+    // Clear receive buffer and send request
     RELAY_SERIAL.flush();
-    for (int _i = 0; _i < 8; _i++)
-      RELAY_SERIAL.write(_data_write[_i]);
+    for (int i = 0; i < 8; i++)
+      RELAY_SERIAL.write(frame_tx[i]);
 
-    /**** Read data ****/
-    vTaskDelay(300);
+    // Wait for response (200ms timeout)
+    vTaskDelay(200);
+
+    // Read response
+    rx_count = 0;
+    for (byte i = 0; i < sizeof(frame_rx); i++)
+      frame_rx[i] = 0x00;
+
     if (RELAY_SERIAL.available())
     {
-      for (byte _i = 0; _i < sizeof(_data_read); _i++)
-        _data_read[_i] = 0x00;
-      _byte_cnt = 0;
-
-      // ✅ Improved frame reading with alignment check
-      do {
-        uint8_t _byte = RELAY_SERIAL.read();
-        
-        // Skip leading 0x00 bytes
-        if (_byte_cnt == 0 && _byte == 0x00) {
-          continue;  // Skip and wait for valid start
+      // Read all available bytes, skip initial 0x00 if present
+      do
+      {
+        frame_rx[rx_count++] = RELAY_SERIAL.read();
+        if (frame_rx[0] == 0x00 && rx_count == 1)
+        {
+          // Skip leading 0x00
+          rx_count = 0;
         }
-        
-        _data_read[_byte_cnt++] = _byte;
-      } while (RELAY_SERIAL.available() > 0 && _byte_cnt < sizeof(_data_read));
+      } while (RELAY_SERIAL.available() > 0 && rx_count < sizeof(frame_rx));
 
-      if (debug) {
-        Serial.printf("RX << Addr: %d | Bytes: %d | Packet: ", address, _byte_cnt);
-        for (int _i = 0; _i < _byte_cnt; _i++) Serial.printf("%02X ", _data_read[_i]);
-        Serial.println();
+#ifdef modbusRTU_Debug2
+      Serial.printf("[SEARCH] ID=%d response: RX(%d bytes) [ ", currentID, rx_count);
+      for (byte i = 0; i < rx_count; i++)
+      {
+        if (frame_rx[i] > 0x0F)
+          Serial.printf("0x%X ", frame_rx[i]);
+        else
+          Serial.printf("0x0%X ", frame_rx[i]);
       }
+      Serial.printf("]\r\n");
+#endif
 
-      // ✅ Validate response for FC=0x01 (6 bytes minimum)
-      if (_byte_cnt >= 6) {
-        // Check address byte matches
-        if (_data_read[0] != address) {
-          if (debug) Serial.printf("  ❌ Address mismatch: expected %d, got %d\r\n", address, _data_read[0]);
+      // =========================================================
+      // VALIDATE RESPONSE FOR FC 0x05 (Write Single Coil)
+      // =========================================================
+      // FC 0x05 response format: [Address][FC=0x05][Coil_Addr_Hi][Coil_Addr_Lo][Value_Hi][Value_Lo][CRC_Lo][CRC_Hi]
+      // Response should echo the request (8 bytes for valid relay)
+      if (rx_count == 8)
+      {
+        // Verify address matches
+        if (frame_rx[0] != currentID)
+        {
+#ifdef modbusRTU_Debug2
+          Serial.printf("[SEARCH] ID=%d - Address mismatch\r\n", currentID);
+#else
+          Serial.printf("FAIL (addr)\r\n");
+#endif
           continue;
         }
 
-        // Check function code (should be 0x01 for Read Coils)
-        if (_data_read[1] != 0x01) {
-          if (debug) Serial.printf("  ❌ Function code error: %02X\r\n", _data_read[1]);
+        // Verify function code is 0x05 (not error response 0x85)
+        if (frame_rx[1] != 0x05)
+        {
+#ifdef modbusRTU_Debug2
+          Serial.printf("[SEARCH] ID=%d - FC mismatch (got 0x%02X)\r\n", currentID, frame_rx[1]);
+#else
+          Serial.printf("FAIL (fc)\r\n");
+#endif
           continue;
         }
 
-        // ✅ Validate CRC of response (calculate over first _byte_cnt-2 bytes)
-        _crc_r = 0xffff;
-        for (byte _i = 0; _i < _byte_cnt - 2; _i++) {
-          _crc_r = crc16_update(_crc_r, _data_read[_i]);
+        // Verify coil address echoed
+        if (frame_rx[2] != 0x00 || frame_rx[3] != 0x00)
+        {
+#ifdef modbusRTU_Debug2
+          Serial.printf("[SEARCH] ID=%d - Coil address mismatch\r\n", currentID);
+#else
+          Serial.printf("FAIL (coil)\r\n");
+#endif
+          continue;
         }
 
-        // CRC bytes are at positions _byte_cnt-2 (low) and _byte_cnt-1 (high)
-        uint16_t _crc_received = _data_read[_byte_cnt - 2] | (((uint16_t)_data_read[_byte_cnt - 1]) << 8);
-
-        if (_crc_r == _crc_received) {
-          Serial.printf("✅ Found Relay ModbusRTU at address: %d\r\n", address);
-          return address;
-        } else {
-          if (debug) Serial.printf("  ❌ CRC error: calculated %04X, received %04X\r\n", _crc_r, _crc_received);
+        // Verify CRC
+        crc = 0xFFFF;
+        for (int i = 0; i < 6; i++)
+        {
+          crc ^= (uint16_t)frame_rx[i];
+          for (int j = 0; j < 8; j++)
+          {
+            if (crc & 0x0001)
+            {
+              crc >>= 1;
+              crc ^= 0xA001;
+            }
+            else
+            {
+              crc >>= 1;
+            }
+          }
         }
+
+        crc_rx = frame_rx[6] | (((uint16_t)frame_rx[7]) << 8);
+
+        if (crc == crc_rx)
+        {
+          // ✅ VALID RELAY MODULE FOUND!
+          Serial.printf("\r\n[SEARCH] ✓✓✓ RELAY FOUND AT ID: %d ✓✓✓\r\n\r\n", currentID);
+          return currentID;
+        }
+        else
+        {
+#ifdef modbusRTU_Debug2
+          Serial.printf("[SEARCH] ID=%d - CRC error\r\n", currentID);
+#else
+          Serial.printf("FAIL (crc)\r\n");
+#endif
+          continue;
+        }
+      }
+      else
+      {
+#ifdef modbusRTU_Debug2
+        Serial.printf("[SEARCH] ID=%d - Invalid response length: %d (expected 8)\r\n", currentID, rx_count);
+#else
+        Serial.printf("FAIL (len:%d)\r\n", rx_count);
+#endif
       }
     }
+    else
+    {
+#ifdef modbusRTU_Debug2
+      Serial.printf("[SEARCH] ID=%d - No response\r\n", currentID);
+#else
+      Serial.printf("NO RESPONSE\r\n");
+#endif
+    }
+
+    // Small delay before trying next address
+    vTaskDelay(100);
   }
-  Serial.printf("❌ Relay ModbusRTU not found!!\r\n");
+
+  // =========================================================
+  // NO RELAY FOUND IN RANGE
+  // =========================================================
+  Serial.printf("\r\n[SEARCH] ✗ No Relay Module found in ID range %d-%d\r\n\r\n", startID, stopID);
   return -1;
 }
-
-
 
 /***********************************************************************
  * FUNCTION:    RelayModusRTU_Control
@@ -40558,173 +40667,197 @@ bool tiny32_v5::RelayModusRTU_Control(uint8_t address, uint8_t channel, bool sta
 {
   // Re-initialize with stored RX/TX pins from RelayModusRTU_begin()
   this->RelayModusRTU_begin(this->_relayRTU_rx, this->_relayRTU_tx);
-  
-  uint8_t frame_tx[8];      // Transmit frame
-  uint8_t frame_rx[20];     // Receive buffer (for response)
+
+  uint8_t frame_tx[8];  // Transmit frame
+  uint8_t frame_rx[20]; // Receive buffer (for response)
   uint16_t crc;
   uint16_t crc_rx;
   uint8_t rx_count = 0;
-  
+
   // ============================================================
   // BUILD MODBUS RTU REQUEST FRAME (Function Code 0x05)
   // Frame format: [Address][FC=0x05][Coil_Addr_Hi][Coil_Addr_Lo][Value_Hi][Value_Lo][CRC_Lo][CRC_Hi]
   // ============================================================
-  frame_tx[0] = address;         // Slave address
-  frame_tx[1] = 0x05;            // Function Code = Write Single Coil
-  frame_tx[2] = 0x00;            // Coil address high byte
-  frame_tx[3] = (channel-1);         // Coil address low byte (0-based index)
-  frame_tx[4] = state ? 0xFF : 0x00;  // Coil value high byte (0xFF for ON, 0x00 for OFF)
-  frame_tx[5] = 0x00;            // Coil value low byte
-  
+  frame_tx[0] = address;             // Slave address
+  frame_tx[1] = 0x05;                // Function Code = Write Single Coil
+  frame_tx[2] = 0x00;                // Coil address high byte
+  frame_tx[3] = (channel - 1);       // Coil address low byte (0-based index)
+  frame_tx[4] = state ? 0xFF : 0x00; // Coil value high byte (0xFF for ON, 0x00 for OFF)
+  frame_tx[5] = 0x00;                // Coil value low byte
+
   // Calculate CRC16 (XOR-based algorithm)
   crc = 0xFFFF;
-  for (int pos = 0; pos < 6; pos++) {
+  for (int pos = 0; pos < 6; pos++)
+  {
     crc ^= (uint16_t)frame_tx[pos];
-    for (int i = 0; i < 8; i++) {
-      if (crc & 0x0001) {
+    for (int i = 0; i < 8; i++)
+    {
+      if (crc & 0x0001)
+      {
         crc >>= 1;
         crc ^= 0xA001;
-      } else {
+      }
+      else
+      {
         crc >>= 1;
       }
     }
   }
-  
-  frame_tx[6] = crc & 0xFF;      // CRC low byte
-  frame_tx[7] = crc >> 8;        // CRC high byte
-  
+
+  frame_tx[6] = crc & 0xFF; // CRC low byte
+  frame_tx[7] = crc >> 8;   // CRC high byte
+
   // ============================================================
   // TRANSMIT REQUEST FRAME
   // ============================================================
-  RELAY_SERIAL.flush();  // Clear RX buffer before transmission
-  for (int i = 0; i < 8; i++) {
+  RELAY_SERIAL.flush(); // Clear RX buffer before transmission
+  for (int i = 0; i < 8; i++)
+  {
     RELAY_SERIAL.write(frame_tx[i]);
   }
-  RELAY_SERIAL.flush();  // Wait for transmission complete
-  
-  #ifdef modbusRTU_Debug2
-  Serial.printf("[TX] Addr:%d FC:05 Channel:%d State:%s CRC:0x%04X Frame:", 
-               address, channel, state ? "ON " : "OFF", crc);
-  for (int i = 0; i < 8; i++) {
+  RELAY_SERIAL.flush(); // Wait for transmission complete
+
+#ifdef modbusRTU_Debug2
+  Serial.printf("[TX] Addr:%d FC:05 Channel:%d State:%s CRC:0x%04X Frame:",
+                address, channel, state ? "ON " : "OFF", crc);
+  for (int i = 0; i < 8; i++)
+  {
     Serial.printf(" %02X", frame_tx[i]);
   }
   Serial.println();
-  #endif  
-  
+#endif
+
   // ============================================================
   // WAIT FOR RESPONSE (300ms timeout)
   // ============================================================
   vTaskDelay(300);
-  
-  if (!RELAY_SERIAL.available()) {
-    Serial.printf("[ERROR] No response from Relay Module (Address: %d, Channel: %d) - TIMEOUT\r\n", 
+
+  if (!RELAY_SERIAL.available())
+  {
+    Serial.printf("[ERROR] No response from Relay Module (Address: %d, Channel: %d) - TIMEOUT\r\n",
                   address, channel);
-    return false;  // Timeout = Communication Failed
+    return false; // Timeout = Communication Failed
   }
-  
+
   // ============================================================
   // READ RESPONSE FRAME
   // ============================================================
   rx_count = 0;
-  while (RELAY_SERIAL.available() && rx_count < 20) {
+  while (RELAY_SERIAL.available() && rx_count < 20)
+  {
     frame_rx[rx_count] = RELAY_SERIAL.read();
-    
+
     // Skip leading 0x00 bytes (sometimes received)
-    if (rx_count == 0 && frame_rx[0] == 0x00) {
+    if (rx_count == 0 && frame_rx[0] == 0x00)
+    {
       rx_count = 0;
       continue;
     }
-    
+
     rx_count++;
   }
-  
-  #ifdef modbusRTU_Debug2
+
+#ifdef modbusRTU_Debug2
   Serial.printf("[RX] Length:%d Frame:", rx_count);
-  for (int i = 0; i < rx_count; i++) {
+  for (int i = 0; i < rx_count; i++)
+  {
     Serial.printf(" %02X", frame_rx[i]);
   }
   Serial.println();
-  #endif
-  
+#endif
+
   // ============================================================
   // VALIDATE RESPONSE
   // ============================================================
-  
+
   // Response should be 8 bytes for FC 0x05: [Address][FC][CoilAddr_H][CoilAddr_L][Value_H][Value_L][CRC_L][CRC_H]
-  if (rx_count != 8) {
+  if (rx_count != 8)
+  {
     Serial.printf("[ERROR] Invalid response length: %d bytes (expected 8)\r\n", rx_count);
     return false;
   }
-  
+
   // Check address byte matches
-  if (frame_rx[0] != address) {
+  if (frame_rx[0] != address)
+  {
     Serial.printf("[ERROR] Address mismatch: sent 0x%02X, received 0x%02X\r\n", address, frame_rx[0]);
     return false;
   }
-  
+
   // Check function code matches (should echo 0x05)
-  if (frame_rx[1] != 0x05) {
+  if (frame_rx[1] != 0x05)
+  {
     Serial.printf("[ERROR] Function code mismatch: sent 0x05, received 0x%02X\r\n", frame_rx[1]);
     return false;
   }
-  
+
   // Check coil address echo
-  if (frame_rx[2] != 0x00 || frame_rx[3] != (channel - 1)) {
-    Serial.printf("[ERROR] Coil address mismatch: sent 0x00%02X, received 0x%02X%02X\r\n", 
+  if (frame_rx[2] != 0x00 || frame_rx[3] != (channel - 1))
+  {
+    Serial.printf("[ERROR] Coil address mismatch: sent 0x00%02X, received 0x%02X%02X\r\n",
                   (channel - 1), frame_rx[2], frame_rx[3]);
     return false;
   }
-  
+
   // Check coil value echo
   // Note: Some relay modules echo the coil address in bytes 4-5 instead of the value
   // So we'll accept either the value or the address as valid echo
   bool coil_value_ok = false;
-  if (state && (frame_rx[4] == 0xFF || frame_rx[4] == 0x00)) {
-    coil_value_ok = true;  // Either 0xFF00 (value) or 0x0000 (address echo) is acceptable
+  if (state && (frame_rx[4] == 0xFF || frame_rx[4] == 0x00))
+  {
+    coil_value_ok = true; // Either 0xFF00 (value) or 0x0000 (address echo) is acceptable
   }
-  if (!state && (frame_rx[4] == 0x00)) {
-    coil_value_ok = true;  // OFF state should echo 0x0000
+  if (!state && (frame_rx[4] == 0x00))
+  {
+    coil_value_ok = true; // OFF state should echo 0x0000
   }
-  
-  if (!coil_value_ok) {
-    Serial.printf("[ERROR] Coil value mismatch: expected OFF state to echo 0x0000, got 0x%02X%02X\r\n", 
+
+  if (!coil_value_ok)
+  {
+    Serial.printf("[ERROR] Coil value mismatch: expected OFF state to echo 0x0000, got 0x%02X%02X\r\n",
                   frame_rx[4], frame_rx[5]);
     return false;
   }
-  
+
   // ============================================================
   // VALIDATE CRC16 OF RESPONSE
   // ============================================================
   crc = 0xFFFF;
-  for (int i = 0; i < 6; i++) {  // Calculate CRC for first 6 bytes
+  for (int i = 0; i < 6; i++)
+  { // Calculate CRC for first 6 bytes
     crc ^= (uint16_t)frame_rx[i];
-    for (int j = 0; j < 8; j++) {
-      if (crc & 0x0001) {
+    for (int j = 0; j < 8; j++)
+    {
+      if (crc & 0x0001)
+      {
         crc >>= 1;
         crc ^= 0xA001;
-      } else {
+      }
+      else
+      {
         crc >>= 1;
       }
     }
   }
-  
+
   // Extract received CRC (bytes 6-7 in little-endian format)
   crc_rx = (frame_rx[7] << 8) | frame_rx[6];
-  
-  if (crc != crc_rx) {
+
+  if (crc != crc_rx)
+  {
     Serial.printf("[ERROR] CRC mismatch: calculated 0x%04X, received 0x%04X\r\n", crc, crc_rx);
-    return false;  // CRC Invalid
+    return false; // CRC Invalid
   }
-  
-  // ============================================================
-  // ALL VALIDATION PASSED - CONTROL SUCCESSFUL
-  // ============================================================
-  #ifdef modbusRTU_Debug2
-  Serial.printf("[OK] Relay control successful! Channel %d set to %s\r\n", 
-               channel, state ? "ON" : "OFF");
-  #endif
-  
-  return true;  // ✅ Control Successful
+
+// ============================================================
+// ALL VALIDATION PASSED - CONTROL SUCCESSFUL
+// ============================================================
+#ifdef modbusRTU_Debug2
+  Serial.printf("[OK] Relay control successful! Channel %d set to %s\r\n",
+                channel, state ? "ON" : "OFF");
+#endif
+
+  return true; // ✅ Control Successful
 }
 
 /***********************************************************************
@@ -40747,9 +40880,9 @@ bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
   uint8_t _data_check[7];
 
   _data_write[0] = address;
-  _data_write[1] = 0x01;  // FC=0x01 (Read Coils) instead of 0x03
+  _data_write[1] = 0x01; // FC=0x01 (Read Coils) instead of 0x03
   _data_write[2] = 0x00;
-  _data_write[3] = (channel - 1);  // Coil address (0-indexed)
+  _data_write[3] = (channel - 1); // Coil address (0-indexed)
   _data_write[4] = 0x00;
   _data_write[5] = 0x01;
 
@@ -40836,13 +40969,13 @@ bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
   if (_byte_cnt == 6)
   {
     // For FC=0x01 response: [Addr][FC][ByteCount][CoilData][CRC_Low][CRC_High]
-    _data_check[0] = _data_read[0];  // Address
-    _data_check[1] = _data_read[1];  // Function code
-    _data_check[2] = _data_read[2];  // Byte count
-    _data_check[3] = _data_read[3];  // Coil data (this is what we want: 0x00=OFF, 0x01=ON)
-    _data_check[4] = 0x00;           // Unused
-    _data_check[5] = _data_read[4];  // CRC low
-    _data_check[6] = _data_read[5];  // CRC high
+    _data_check[0] = _data_read[0]; // Address
+    _data_check[1] = _data_read[1]; // Function code
+    _data_check[2] = _data_read[2]; // Byte count
+    _data_check[3] = _data_read[3]; // Coil data (this is what we want: 0x00=OFF, 0x01=ON)
+    _data_check[4] = 0x00;          // Unused
+    _data_check[5] = _data_read[4]; // CRC low
+    _data_check[6] = _data_read[5]; // CRC high
 
 /***** Debug monitor ****/
 #ifdef modbusRTU_Debug2
@@ -40949,34 +41082,41 @@ bool tiny32_v5::RelayModusRTU_Status(uint8_t address, uint8_t channel)
   _crc_r = 0xffff;
 
   // For FC=0x01 (6-byte response), calculate CRC over bytes 0-3 only
-  if (_byte_cnt == 6) {
-    for (byte _i = 0; _i < 4; _i++) {  // Only first 4 bytes for FC=0x01
+  if (_byte_cnt == 6)
+  {
+    for (byte _i = 0; _i < 4; _i++)
+    { // Only first 4 bytes for FC=0x01
       _crc = crc16_update(_crc, _data_read[_i]);
     }
-  } else {
+  }
+  else
+  {
     // For other responses, use original logic
     for (byte _i = 0; _i < sizeof(_data_check) - 2; _i++)
     {
       _crc = crc16_update(_crc, _data_check[_i]);
     }
   }
-  
+
 #ifdef modbusRTU_Debug2
   Serial.printf("Debug: _crc[data_read] = 0x%X\r\n", _crc);
 #endif
 
   // read crc byte from response
-  if (_byte_cnt == 6) {
+  if (_byte_cnt == 6)
+  {
     // For FC=0x01, CRC is in the last 2 bytes of the response
-    _crc_r = _data_read[4] | (((uint16_t)_data_read[5]) << 8);  // Low byte first, then high byte
-  } else {
+    _crc_r = _data_read[4] | (((uint16_t)_data_read[5]) << 8); // Low byte first, then high byte
+  }
+  else
+  {
     // Original logic for other responses
     _crc_r = _data_check[sizeof(_data_check) - 1];
     _crc_r = _crc_r << 8;
     Serial.print(">>");
     _crc_r = _crc_r + _data_check[sizeof(_data_check) - 2];
   }
-  
+
 #ifdef modbusRTU_Debug2
   Serial.printf("Debug: _crc_r[check] = 0x%X\r\n", _crc_r);
 #endif
@@ -41119,7 +41259,7 @@ int tiny32_v5::TFLiDAR_getData()
       }
       rec_debug_state = 0x01;
       _error_count = 0; // reset error count
-      return dist; // return distance in meters
+      return dist;      // return distance in meters
     }
   }
 
@@ -41129,12 +41269,12 @@ int tiny32_v5::TFLiDAR_getData()
     _error_count = 0;
     return TFLiDAR_ERROR_DISCONNECT;
   }
-  else{
+  else
+  {
     return TFLiDAR_ERROR_NONE; // return -2 if no data available
   }
   return TFLiDAR_ERROR_NONE;
 }
-
 
 /***********************************************************************
  * FUNCTION:    library_version
@@ -41227,7 +41367,6 @@ void tiny32_v5::buzzer_beep(int times)
   }
 }
 
-
 /***********************************************************************
  * FUNCTION:    Sw1
  * DESCRIPTION: Read SW1[pin34] with edge detection (rising edge only)
@@ -41238,12 +41377,13 @@ bool tiny32_v5::Sw1(void)
 {
   bool currentState = _sw1Debounce->read();
   bool result = false;
-  
+
   // Detect rising edge (LOW -> HIGH)
-  if (currentState && !_sw1LastState) {
+  if (currentState && !_sw1LastState)
+  {
     result = true;
   }
-  
+
   _sw1LastState = currentState;
   return result;
 }
@@ -41269,12 +41409,13 @@ bool tiny32_v5::Sw2(void)
 {
   bool currentState = _sw2Debounce->read();
   bool result = false;
-  
+
   // Detect rising edge (LOW -> HIGH)
-  if (currentState && !_sw2LastState) {
+  if (currentState && !_sw2LastState)
+  {
     result = true;
   }
-  
+
   _sw2LastState = currentState;
   return result;
 }
