@@ -3,7 +3,7 @@
  * Description  :     Class for Hardware config and function for tiny32_v5 module
  * Author       :     Tenergy Innovation Co., Ltd.
  * Date         :     23 Nov 2021
- * Revision     :     4.0.5
+ * Revision     :     4.0.6
  * Rev1.0       :     Original
  * Rev1.1       :     Add TimeStamp_minute
  *                    Add TimeStamp_24hr_minute
@@ -60,7 +60,7 @@
  * Rev4.0.3     :     Fix bug RelayModbusRTU_Control by check coil address echo [08-01-2026 19:37]
  * Rev4.0.4     :     Fix bug cause some function is missing in tiny32_v5.h [10-01-2026 11:33]
  * Rev4.0.5     :     Fix bug RelayModusRTU_searchAddress function to search ID correctly by FC 0x05 (Write Single Coil) [10-00-2026 12:02]
- * website      :     http://www.tenergyinnovation.co.th
+ * Rev4.0.6     :     Fix function RelayModusRTU_Control and RelayModusRTU_Status โดยนำโค้ดจาก tiny32_v3 มาปรับรุงใหม่ เพราะโค้ดตัวเดิมใช้ AI สร้าง และไม่สามารถแก้โค้ดให้เข้าใจได้ [2026-06-20 13:56]
  * Email        :     uten.boonliam@tenergyinnovation.co.th
  * TEL          :     089-140-7205
  ***********************************************************************/
@@ -73,7 +73,7 @@
 class tiny32_v5
 {
 private:
-#define version_c "4.0.5"
+#define version_c "4.0.6"
     Debounce* _sw1Debounce;
     Debounce* _sw2Debounce;
     bool _sw1LastState;
